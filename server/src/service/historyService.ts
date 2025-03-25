@@ -1,112 +1,90 @@
-import fs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { fileURLToPath } from 'url';
 
-//Define a City class with name and id properties
-
-class City {
-  id: string;
-  name: string;
-  timestamp: string;
-
-  constructor(name: string, id: string = uuidv4()) {
-    this.id = id;
-    this.name = name;
-    this.timestamp = new Date().toISOString();
-  }
-}
-
-//Complete the HistoryService class
+// Get __dirname equivalent in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class HistoryService {
   private filePath: string;
 
   constructor() {
-    this.filePath = path.join(__dirname, '../../../server/db/searchHistory.json');
+    // Fix the path to use __dirname
+    this.filePath = path.join(__dirname, '../../db/searchHistory.json');
+    
+    // Create the directory and file if they don't exist
+    this.initializeFile();
   }
 
-  //Define a read method that reads from the searchHistory.json file
+  private initializeFile(): void {
+    const dir = path.dirname(this.filePath);
+    
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    if (!fs.existsSync(this.filePath)) {
+      fs.writeFileSync(this.filePath, JSON.stringify([]));
+    }
+  }
 
-  private async read(): Promise<City[]> {
+  async getSearchHistory(): Promise<string[]> {
     try {
-      const data = await fs.readFile(this.filePath, 'utf8');
+      const data = await fs.promises.readFile(this.filePath, 'utf8');
       return JSON.parse(data);
-    } catch (error: any) {
-
-      //If file doesn't exist or is empty, return empty array
-      if (error.code === 'ENOENT' || error.message.includes('Unexpected end of JSON input')) {
-        await this.write([]);
-        return [];
-      }
-      throw error;
-    }
-  }
-
-  //Define a write method that writes the updated cities array to the searchHistory.json file
-  
-  private async write(cities: City[]): Promise<void> {
-    try {
-      await fs.writeFile(this.filePath, JSON.stringify(cities, null, 2));
     } catch (error) {
-      console.error('Error writing to history file:', error);
-      throw error;
+      console.error('Error reading search history:', error);
+      return [];
     }
   }
 
-  //Define a getCities method that reads the cities from the searchHistory.json file and returns them as an array of City objects
-  
-  async getCities(): Promise<City[]> {
-    return await this.read();
-  }
-
-  //Define an addCity method that adds a city to the searchHistory.json file
-  
-  async addCity(cityName: string): Promise<City> {
+  async saveSearch(city: string): Promise<void> {
     try {
-      const cities = await this.read();
+      const history = await this.getSearchHistory();
       
-      //Check if city already exists in history
-      
-      const existingCity = cities.find(city => city.name.toLowerCase() === cityName.toLowerCase());
-      
-      if (existingCity) {
+      // Don't add duplicates
+      if (!history.includes(city)) {
+        history.push(city);
         
-        // Return existing city without modifying history
-        return existingCity;
+        // Keep only the most recent 5 searches
+        const recentHistory = history.slice(-5);
+        
+        await fs.promises.writeFile(
+          this.filePath, 
+          JSON.stringify(recentHistory)
+        );
       }
-      
-      //Create new city entry with unique ID
-      
-      const newCity = new City(cityName);
-      
-      //Add to history and save
-      
-      cities.push(newCity);
-      await this.write(cities);
-      
-      return newCity;
     } catch (error) {
-      console.error('Error adding city to history:', error);
-      throw error;
+      console.error('Error saving search:', error);
     }
   }
 
-  //BONUS: Define a removeCity method that removes a city from the searchHistory.json file
-  
-  async removeCity(id: string): Promise<{ success: boolean; message: string }> {
+  async removeCity(city: string): Promise<boolean> {
     try {
-      const cities = await this.read();
-      const filteredCities = cities.filter(city => city.id !== id);
+      const history = await this.getSearchHistory();
       
-      if (cities.length === filteredCities.length) {
-        throw new Error('City not found');
+      // Find the index of the city in the history
+      const index = history.indexOf(city);
+      
+      // If the city is not in the history, return false
+      if (index === -1) {
+        return false;
       }
       
-      await this.write(filteredCities);
-      return { success: true, message: 'City deleted from history' };
-    } catch (error: any) {
-      console.error('Error removing city from history:', error.message);
-      throw error;
+      // Remove the city from the history
+      history.splice(index, 1);
+      
+      // Save the updated history
+      await fs.promises.writeFile(
+        this.filePath, 
+        JSON.stringify(history)
+      );
+      
+      return true;
+    } catch (error) {
+      console.error('Error removing city from history:', error);
+      return false;
     }
   }
 }

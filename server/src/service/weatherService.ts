@@ -1,5 +1,7 @@
 import dotenv from "dotenv";
 import axios from "axios";
+
+// Load environment variables
 dotenv.config();
 
 // Define an interface for the Coordinates object
@@ -48,20 +50,34 @@ class WeatherService {
     this.baseURL = "https://api.openweathermap.org/data/2.5";
     this.geoURL = "https://api.openweathermap.org/geo/1.0/direct";
     this.apiKey = process.env.OPENWEATHER_API_KEY || "";
+    
+    // Log API key status for debugging
+    console.log(`API Key status: ${this.apiKey ? "API key is set" : "API key is missing"}`);
+    
+    if (!this.apiKey) {
+      console.error("WARNING: OpenWeather API key is missing. Set OPENWEATHER_API_KEY in your .env file.");
+    }
   }
 
   // Create fetchLocationData method
   private async fetchLocationData(query: string) {
     try {
-      const response = await axios.get(this.buildGeocodeQuery(query));
+      const url = this.buildGeocodeQuery(query);
+      console.log(`Fetching location data from: ${url}`);
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error: any) {
       console.error("Error fetching location data:", error.message);
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+      }
       throw error;
     }
   }
 
-  // Create destructureLocationData method
+  //Create destructureLocationData method
   private destructureLocationData(locationData: any[]): Coordinates {
     if (!locationData || locationData.length === 0) {
       throw new Error("City not found");
@@ -71,17 +87,17 @@ class WeatherService {
     return { lat, lon };
   }
 
-  // Create buildGeocodeQuery method
+  //Create buildGeocodeQuery method
   private buildGeocodeQuery(query: string): string {
     return `${this.geoURL}?q=${query}&limit=1&appid=${this.apiKey}`;
   }
 
-  // Create buildWeatherQuery method
+  //Create buildWeatherQuery method
   private buildWeatherQuery(coordinates: Coordinates): string {
     return `${this.baseURL}/forecast?lat=${coordinates.lat}&lon=${coordinates.lon}&units=imperial&appid=${this.apiKey}`;
   }
 
-  // Create fetchAndDestructureLocationData method
+  //Create fetchAndDestructureLocationData method
   private async fetchAndDestructureLocationData(
     city: string
   ): Promise<Coordinates> {
@@ -89,18 +105,25 @@ class WeatherService {
     return this.destructureLocationData(locationData);
   }
 
-  // Create fetchWeatherData method
+  //Create fetchWeatherData method
   private async fetchWeatherData(coordinates: Coordinates) {
     try {
-      const response = await axios.get(this.buildWeatherQuery(coordinates));
+      const url = this.buildWeatherQuery(coordinates);
+      console.log(`Fetching weather data from: ${url}`);
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error: any) {
       console.error("Error fetching weather data:", error.message);
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+      }
       throw error;
     }
   }
 
-  // Build parseCurrentWeather method
+  //Build parseCurrentWeather method
   private parseCurrentWeather(response: any): Weather {
     const { city, list } = response;
     const currentData = list[0];
@@ -116,7 +139,7 @@ class WeatherService {
     );
   }
 
-  // Complete buildForecastArray method
+  //Complete buildForecastArray method
   private buildForecastArray(
     currentWeather: Weather,
     weatherData: any[]
@@ -124,13 +147,13 @@ class WeatherService {
     const forecast: Weather[] = [];
     const uniqueDays = new Set<string>();
 
-    // Start from index 1 to skip current day
+    //Start from index 1 to skip current day
     for (let i = 1; i < weatherData.length; i++) {
       const item = weatherData[i];
       const date = new Date(item.dt * 1000);
       const day = date.toLocaleDateString();
 
-      // Only add one entry per day (around noon)
+      //Only add one entry per day (around noon)
       if (
         !uniqueDays.has(day) &&
         date.getHours() >= 11 &&
@@ -150,7 +173,7 @@ class WeatherService {
           )
         );
 
-        // Stop after 5 days
+        //Stop after 5 days
         if (forecast.length === 5) break;
       }
     }
@@ -158,10 +181,14 @@ class WeatherService {
     return forecast;
   }
 
-  // Complete getWeatherForCity method
+  //Complete getWeatherForCity method
   async getWeatherForCity(city: string) {
     try {
+      console.log(`Getting weather for city: ${city}`);
+      
       const coordinates = await this.fetchAndDestructureLocationData(city);
+      console.log(`Coordinates for ${city}: lat=${coordinates.lat}, lon=${coordinates.lon}`);
+      
       const weatherResponse = await this.fetchWeatherData(coordinates);
 
       const currentWeather = this.parseCurrentWeather(weatherResponse);

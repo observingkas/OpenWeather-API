@@ -1,38 +1,42 @@
-import dotenv from 'dotenv';
 import express from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
 import path from 'path';
-import { fileURLToPath }  from 'url';
+import { fileURLToPath } from 'url';
 
+//Load environment variables
 dotenv.config();
 
-//Import routes
-import routes from './routes/index';
+// Test environment variables
+console.log("Environment variables loaded:");
+console.log(`PORT: ${process.env.PORT || '3002 (default)'}`);
+console.log(`OPENWEATHER_API_KEY: ${process.env.OPENWEATHER_API_KEY ? 'Set' : 'Not set'}`);
 
-//Set up __dirname in ES module scope
+//Get __dirname equivalent in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const ___filename = fileURLToPath(import.meta.url);
-const ___dirname = path.dirname(___filename);
+import routes from './routes/index.js';
 
 const app = express();
-const port = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
-//Implement middleware for parsing JSON and urlencoded form data
-
+//Middleware
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-//Serve static files from the client dist folder in production or client folder in development
+//Serve static files from the React app in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../../client/dist')));
+}
 
-const clientPath = process.env.NODE_ENV === 'production'
-? path.join(___dirname, '../../client', 'dist')
-: path.join(___dirname, '../../client');
-
-app.use(express.static(clientPath));
-
-//Implement middleware to connect the routes
-
+//Use routes
 app.use(routes);
 
-//Start the server on the port
+//Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
-app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+export default app;
